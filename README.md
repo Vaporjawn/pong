@@ -8,6 +8,9 @@
 
 A modern, feature-rich implementation of the classic Pong game written in Rust using the macroquad game engine. This project showcases clean architecture, comprehensive testing, and professional software development practices.
 
+<img width="795" height="636" alt="Screenshot 2025-09-28 at 07 03 21" src="https://github.com/user-attachments/assets/3d9fa2b4-ccb4-4a38-b0a5-3319cdd0d505" />
+
+
 ## ✨ Features
 
 - **🎮 Classic Gameplay**: Authentic Pong experience with smooth physics
