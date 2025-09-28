@@ -1,0 +1,159 @@
+﻿name: Nightly
+
+on:
+  schedule:
+    # Run every day at 2:00 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  nightly-test:
+    name: Nightly Tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rustfmt, clippy, miri
+
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev
+
+    - name: Check with nightly compiler
+      run: cargo +nightly check --all-targets --all-features
+
+    - name: Test with nightly compiler
+      run: cargo +nightly test --all-features
+
+    - name: Lint with nightly clippy
+      run: cargo +nightly clippy --all-targets --all-features -- -D warnings
+
+    - name: Run Miri (unsafe code detection)
+      run: |
+        # Miri can be resource intensive, so we run a subset
+        cargo +nightly miri test --lib
+      continue-on-error: true  # Miri might not support all features
+
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev
+
+    - name: Install cargo-criterion
+      run: cargo install cargo-criterion
+
+    - name: Run benchmarks
+      run: cargo criterion --output-format=json > benchmark_results.json
+      continue-on-error: true  # Benchmarks might not exist yet
+
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      if: success()
+      with:
+        tool: 'cargo'
+        output-file-path: benchmark_results.json
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+        comment-on-alert: true
+        alert-threshold: '120%'
+        fail-on-alert: false
+
+  dependency-update:
+    name: Dependency Updates Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-outdated
+      run: cargo install cargo-outdated
+
+    - name: Check for outdated dependencies
+      run: |
+        echo "## Dependency Update Report" >> dependency_report.md
+        echo "" >> dependency_report.md
+        echo "### Outdated Dependencies" >> dependency_report.md
+        cargo outdated --format=json > outdated.json || true
+
+        if [ -s outdated.json ]; then
+          echo "Found outdated dependencies:" >> dependency_report.md
+          cat outdated.json >> dependency_report.md
+        else
+          echo "All dependencies are up to date! ✅" >> dependency_report.md
+        fi
+
+    - name: Comment dependency report
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          if (fs.existsSync('dependency_report.md')) {
+            const report = fs.readFileSync('dependency_report.md', 'utf8');
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: report
+            });
+          }
+
+  security-audit-extended:
+    name: Extended Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install audit tools
+      run: |
+        cargo install cargo-audit
+        cargo install cargo-deny
+
+    - name: Run comprehensive security audit
+      run: |
+        echo "## Security Audit Report" > security_report.md
+        echo "" >> security_report.md
+
+        echo "### Cargo Audit Results" >> security_report.md
+        cargo audit --format=json >> security_report.md || true
+
+        echo "" >> security_report.md
+        echo "### Cargo Deny Results" >> security_report.md
+        cargo deny check >> security_report.md || true
+
+    - name: Upload security report
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-audit-report
+        path: security_report.md

@@ -1,0 +1,20 @@
+[package]
+name = "pong"
+version = "0.1.0"
+edition = "2021"
+authors = ["Victor Williams <victor.williams.dev@gmail.com>"]
+description = "A fully featured Pong game implementation in Rust"
+license = "MIT"
+repository = "https://github.com/Vaporjawn/pong"
+
+[[bin]]
+name = "pong"
+path = "src/main.rs"
+
+[lib]
+name = "pong"
+path = "src/lib.rs"
+
+[dependencies]
+macroquad = { version = "0.4", features = ["audio"] }
+rand = "0.8"
