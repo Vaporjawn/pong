@@ -105,3 +105,6 @@ perf.data*
 
 # CI/CD artifacts
 .github/workflows/artifacts/
+
+# Memory bank and development context files
+.memorybank/
